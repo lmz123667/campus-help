@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>系统管理后台</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <style>
+    body { margin: 0; padding: 0; height: 100vh; font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; background-color: #f0f2f5; }
+    #app, .main-container { height: 100%; }
+
+    /* 侧边栏 */
+    .sidebar { background-color: #304156; color: white; height: 100%; overflow-y: auto; transition: width 0.3s; }
+    .logo-area { height: 60px; line-height: 60px; text-align: center; font-size: 18px; font-weight: bold; background-color: #2b3a4d; border-bottom: 1px solid #1f2d3d; }
+    .logo-area i { margin-right: 8px; color: #409EFF; }
+
+    .el-menu { border-right: none; }
+    .el-menu-item:hover { background-color: #263445 !important; }
+    .el-menu-item.is-active { background-color: #1f2d3d !important; color: #409EFF !important; border-left: 4px solid #409EFF; }
+
+    /* 顶部栏 */
+    .header { background: white; height: 60px; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; box-shadow: 0 1px 4px rgba(0,21,41,.08); }
+    .breadcrumb { font-size: 14px; color: #97a8be; }
+    .admin-info { display: flex; align-items: center; cursor: pointer; }
+
+    /* 主内容区 */
+    .main-content { padding: 20px; overflow-y: auto; height: calc(100vh - 60px); box-sizing: border-box; }
+
+    /* 统计卡片 */
+    .stat-row { display: flex; gap: 20px; margin-bottom: 20px; }
+    .stat-card { flex: 1; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); display: flex; align-items: center; transition: transform 0.3s; }
+    .stat-card:hover { transform: translateY(-3px); }
+    .stat-icon { width: 60px; height: 60px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 30px; color: white; margin-right: 15px; }
+    .icon-blue { background: #409EFF; }
+    .icon-green { background: #67C23A; }
+    .icon-orange { background: #E6A23C; }
+    .stat-info .label { color: #909399; font-size: 14px; margin-bottom: 5px; }
+    .stat-info .num { font-size: 24px; font-weight: bold; color: #303133; }
+
+    /* 表格卡片 */
+    .table-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.05); min-height: 500px; }
+    .card-header { font-size: 16px; font-weight: bold; margin-bottom: 20px; padding-left: 10px; border-left: 4px solid #409EFF; }
+
+    /* 状态标签美化 */
+    .el-tag { border-radius: 4px; font-weight: 500; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <el-container class="main-container">
+    <!-- 侧边栏 -->
+    <el-aside width="220px" class="sidebar">
+      <div class="logo-area"><i class="el-icon-monitor"></i> 管理控制台</div>
+      <el-menu
+              :default-active="activeTab"
+              background-color="#304156"
+              text-color="#bfcbd9"
+              active-text-color="#409EFF"
+              @select="handleSelect">
+        <el-menu-item index="first">
+          <i class="el-icon-user-solid"></i>
+          <span slot="title">用户管理</span>
+        </el-menu-item>
+        <el-menu-item index="second">
+          <i class="el-icon-s-order"></i>
+          <span slot="title">订单监管</span>
+        </el-menu-item>
+        <el-menu-item index="withdraw">
+          <i class="el-icon-money"></i>
+          <span slot="title">财务审核</span>
+        </el-menu-item>
+      </el-menu>
+    </el-aside>
+
+    <el-container>
+      <!-- 顶部栏 -->
+      <el-header class="header">
+        <div class="breadcrumb">首页 / {{ currentTitle }}</div>
+        <div class="admin-info">
+          <el-avatar size="small" src="https://cube.elemecdn.com/3/7c/3ea6beec64369c2642b92c6726f1epng.png" style="margin-right: 10px;"></el-avatar>
+          <el-dropdown @command="handleCommand">
+                        <span class="el-dropdown-link">
+                            管理员 <i class="el-icon-arrow-down el-icon--right"></i>
+                        </span>
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item command="logout">退出登录</el-dropdown-item>
+            </el-dropdown-menu>
+          </el-dropdown>
+        </div>
+      </el-header>
+
+      <!-- 主内容 -->
+      <el-main class="main-content">
+        <!-- 仪表盘统计 (Mock数据) -->
+        <div class="stat-row">
+          <div class="stat-card">
+            <div class="stat-icon icon-blue"><i class="el-icon-user"></i></div>
+            <div class="stat-info"><div class="label">总用户数</div><div class="num">{{ userList.length || '-' }}</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon icon-green"><i class="el-icon-s-data"></i></div>
+            <div class="stat-info"><div class="label">总订单数</div><div class="num">{{ orderList.length || '-' }}</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon icon-orange"><i class="el-icon-bell"></i></div>
+            <div class="stat-info"><div class="label">待审提现</div><div class="num">{{ pendingWithdraws }}</div></div>
+          </div>
+        </div>
+
+        <!-- 动态内容区 -->
+        <div class="table-card">
+          <div class="card-header">{{ currentTitle }}</div>
+
+          <!-- 1. 用户管理 -->
+          <div v-if="activeTab === 'first'">
+            <el-table :data="userList" style="width: 100%" stripe>
+              <el-table-column prop="id" label="ID" width="60"></el-table-column>
+              <el-table-column prop="username" label="账号"></el-table-column>
+              <el-table-column prop="nickname" label="昵称"></el-table-column>
+              <el-table-column label="角色" align="center">
+                <template slot-scope="scope">
+                  <el-tag v-if="scope.row.role==='ADMIN'" type="danger" effect="dark" size="small">管理员</el-tag>
+                  <el-tag v-else-if="scope.row.role==='SELLER'" type="warning" effect="dark" size="small">卖家</el-tag>
+                  <el-tag v-else type="success" effect="dark" size="small">买家</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="余额" align="center">
+                <template slot-scope="scope"><span style="color: #67C23A; font-weight: bold;">¥ {{ scope.row.balance }}</span></template>
+              </el-table-column>
+              <el-table-column label="信誉分" width="150">
+                <template slot-scope="scope">
+                  <el-rate :value="scope.row.creditScore / 20" disabled show-score text-color="#ff9900" :score-template="scope.row.creditScore+''"></el-rate>
+                </template>
+              </el-table-column>
+              <el-table-column prop="contactInfo" label="联系方式"></el-table-column>
+            </el-table>
+          </div>
+
+          <!-- 2. 订单监管 -->
+          <div v-if="activeTab === 'second'">
+            <el-table :data="orderList" style="width: 100%" stripe>
+              <el-table-column prop="order_no" label="订单号" width="140" show-overflow-tooltip></el-table-column>
+              <el-table-column prop="course_name" label="课程"></el-table-column>
+              <el-table-column label="交易双方" width="220">
+                <template slot-scope="scope">
+                  <div style="font-size: 12px; color: #909399;">买: <span style="color:#333">{{ scope.row.buyerName }}</span></div>
+                  <div style="font-size: 12px; color: #909399;">卖: <span style="color:#333">{{ scope.row.sellerName }}</span></div>
+                </template>
+              </el-table-column>
+              <el-table-column prop="price" label="价格" align="center">
+                <template slot-scope="scope"><b>¥{{scope.row.price}}</b></template>
+              </el-table-column>
+              <el-table-column label="状态" align="center">
+                <template slot-scope="scope">
+                  <el-tag v-if="scope.row.status===0" size="small">进行中</el-tag>
+                  <el-tag v-else-if="scope.row.status===2" type="success" size="small">已完成</el-tag>
+                  <el-tag v-else type="info" size="small">已取消</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="180" align="center">
+                <template slot-scope="scope">
+                  <div v-if="scope.row.status === 0">
+                    <el-button size="mini" type="success" plain @click="changeStatus(scope.row, 2)">完成</el-button>
+                    <el-button size="mini" type="danger" plain @click="changeStatus(scope.row, 3)">取消</el-button>
+                  </div>
+                  <span v-else style="color:#ccc; font-size: 12px;">-</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+          <!-- 3. 财务审核 -->
+          <div v-if="activeTab === 'withdraw'">
+            <el-table :data="withdrawList" style="width: 100%" stripe>
+              <el-table-column prop="nickname" label="申请人"></el-table-column>
+              <el-table-column prop="amount" label="金额">
+                <template slot-scope="scope"><span style="font-size: 16px; font-weight: bold; color: #F56C6C;">¥{{ scope.row.amount }}</span></template>
+              </el-table-column>
+              <el-table-column prop="create_time" label="申请时间" width="180"></el-table-column>
+              <el-table-column label="状态" align="center">
+                <template slot-scope="scope">
+                  <el-tag v-if="scope.row.status===0" type="warning" effect="dark">待审核</el-tag>
+                  <el-tag v-else-if="scope.row.status===1" type="success" effect="dark">已打款</el-tag>
+                  <el-tag v-else type="danger" effect="dark">已驳回</el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" width="200" align="center">
+                <template slot-scope="scope">
+                  <div v-if="scope.row.status === 0">
+                    <el-button size="mini" type="success" icon="el-icon-check" circle @click="audit(scope.row, 1)" title="通过"></el-button>
+                    <el-button size="mini" type="danger" icon="el-icon-close" circle @click="audit(scope.row, 2)" title="驳回"></el-button>
+                  </div>
+                  <span v-else style="color:#ccc; font-size: 12px;">已归档</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
+
+        </div>
+      </el-main>
+    </el-container>
+  </el-container>
+</div>
+
+<script>
+  new Vue({
+    el: '#app',
+    data: {
+      activeTab: 'first',
+      userList: [],
+      orderList: [],
+      withdrawList: []
+    },
+    computed: {
+      currentTitle() {
+        const map = { 'first': '用户管理', 'second': '订单监管', 'withdraw': '财务审核' };
+        return map[this.activeTab];
+      },
+      pendingWithdraws() {
+        return this.withdrawList.filter(item => item.status === 0).length;
+      }
+    },
+    created() {
+      const userStr = localStorage.getItem("loginUser");
+      if (!userStr || JSON.parse(userStr).role !== 'ADMIN') { window.location.href = "login.html"; return; }
+      // 预加载所有数据，方便展示仪表盘
+      this.loadAllData();
+    },
+    methods: {
+      loadAllData() {
+        this.loadUsers();
+        this.loadOrders();
+        this.loadWithdraws();
+      },
+      handleSelect(index) {
+        this.activeTab = index;
+      },
+      handleCommand(cmd) {
+        if (cmd === 'logout') {
+          localStorage.removeItem("loginUser");
+          window.location.href = "login.html";
+        }
+      },
+      loadUsers() { axios.get('/admin/users').then(res => this.userList = res.data); },
+      loadOrders() { axios.get('/admin/orders').then(res => this.orderList = res.data); },
+      loadWithdraws() { axios.get('/wallet/admin/withdraws').then(res => this.withdrawList = res.data); },
+
+      audit(row, status) {
+        if(!confirm(status===1?"确定通过？":"确定驳回？")) return;
+        axios.post('/wallet/admin/audit', { id: row.id, status: status }).then(res => {
+          this.$message.success("操作成功");
+          this.loadWithdraws();
+        });
+      },
+      changeStatus(row, newStatus) {
+        if(!confirm("确定强制操作订单？")) return;
+        axios.post('/order/updateStatus', { id: row.id, status: newStatus }).then(res => {
+          this.$message.success("操作成功");
+          this.loadOrders();
+        });
+      }
+    }
+  })
+</script>
+</body>
+</html>

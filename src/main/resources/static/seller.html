@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>卖家中心 - 校园代课系统</title>
+  <!-- 引入 Vue 和 ElementUI -->
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <!-- 引入 Axios -->
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <style>
+    body { margin: 0; background-color: #f7f8fa; font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Microsoft YaHei", Arial, sans-serif; }
+
+    /* 顶部导航 */
+    .navbar {
+      background: rgba(255, 255, 255, 0.95);
+      height: 60px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.05);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      position: sticky; top: 0; z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+    .logo { font-size: 20px; font-weight: bold; color: #67C23A; display: flex; align-items: center; letter-spacing: 1px; }
+    .logo i { margin-right: 8px; font-size: 24px; }
+    .user-profile { display: flex; align-items: center; font-size: 14px; color: #606266; }
+
+    .main-container { max-width: 1100px; margin: 30px auto; padding: 0 20px; }
+
+    /* 仪表盘布局 */
+    .dashboard-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 25px; margin-bottom: 30px; }
+
+    /* 卡片通用样式 */
+    .dashboard-card {
+      border-radius: 16px;
+      padding: 30px;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+      transition: transform 0.3s;
+    }
+    .dashboard-card:hover { transform: translateY(-3px); }
+
+    /* 钱包卡片 (绿色渐变) */
+    .wallet-card {
+      background: linear-gradient(135deg, #42e695 0%, #3bb2b8 100%);
+      color: white;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      box-shadow: 0 15px 30px rgba(66, 230, 149, 0.3);
+    }
+    .wallet-label { font-size: 14px; opacity: 0.9; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 5px; }
+    .wallet-num { font-size: 42px; font-weight: bold; text-shadow: 0 2px 4px rgba(0,0,0,0.1); font-family: sans-serif; }
+    .action-btn {
+      background: rgba(255,255,255,0.2);
+      border: 1px solid rgba(255,255,255,0.4);
+      color: white;
+      border-radius: 20px;
+      padding: 8px 20px;
+      cursor: pointer;
+      backdrop-filter: blur(5px);
+      margin-left: 10px;
+      font-size: 13px;
+      transition: all 0.3s;
+    }
+    .action-btn:hover { background: white; color: #3bb2b8; }
+
+    /* 信誉分卡片 */
+    .credit-card {
+      background: white;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+    }
+    .credit-score-text { font-size: 36px; font-weight: bold; color: #ff9900; margin: 10px 0; }
+    .credit-desc { font-size: 12px; color: #999; }
+
+    /* 内容区块 */
+    .section-card { background: white; border-radius: 12px; padding: 25px; margin-bottom: 25px; box-shadow: 0 5px 20px rgba(0,0,0,0.03); }
+    .section-header { font-size: 18px; font-weight: bold; margin-bottom: 20px; padding-left: 10px; border-left: 4px solid #67C23A; color: #333; }
+
+    /* 表单美化 */
+    .publish-form { background: #f8fcfb; padding: 20px; border-radius: 10px; border: 1px dashed #c2e7b0; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;}
+    .el-select { width: 300px; }
+
+    /* 表格美化 */
+    .el-table { border-radius: 8px; overflow: hidden; }
+    .el-table th { background-color: #f5f7fa !important; color: #606266; font-weight: 600; }
+    .status-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 5px; }
+    .status-free { background-color: #67C23A; }
+    .status-busy { background-color: #F56C6C; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- 导航栏 -->
+  <div class="navbar">
+    <div class="logo"><i class="el-icon-s-cooperation"></i> Desk · 卖家端</div>
+    <div class="user-profile">
+      <el-avatar size="small" style="margin-right: 10px; background: #67C23A;">{{ user.nickname ? user.nickname.substring(0,1) : 'U' }}</el-avatar>
+      <span style="font-weight: 500;">{{ user.nickname }}</span>
+      <el-divider direction="vertical"></el-divider>
+      <el-link type="danger" @click="logout" :underline="false">退出</el-link>
+    </div>
+  </div>
+
+  <div class="main-container">
+    <!-- 仪表盘 -->
+    <div class="dashboard-grid">
+      <!-- 钱包 -->
+      <div class="dashboard-card wallet-card">
+        <div>
+          <div class="wallet-label">Withdrawable Balance</div>
+          <div class="wallet-num">¥ {{ balance }}</div>
+        </div>
+        <div>
+          <button class="action-btn" @click="showHistory">记录</button>
+          <button class="action-btn" @click="withdrawDialog=true" style="background: white; color: #3bb2b8; font-weight: bold;">提现</button>
+        </div>
+      </div>
+      <!-- 信誉分 -->
+      <div class="dashboard-card credit-card">
+        <div style="color: #666; font-size: 14px;">我的信誉评分</div>
+        <div class="credit-score-text">{{ creditScore }}</div>
+        <!-- 修复：使用 :value 而不是 v-model 防止报错 -->
+        <el-rate :value="creditScore / 20" disabled text-color="#ff9900"></el-rate>
+        <div class="credit-desc">保持好评，获取更多订单</div>
+      </div>
+    </div>
+
+    <!-- 1. 发布空闲 -->
+    <div class="section-card">
+      <div class="section-header">发布新的空闲时间</div>
+      <div class="publish-form">
+        <el-date-picker v-model="form.availableDate" type="date" placeholder="选择日期" value-format="yyyy-MM-dd" style="width: 180px;"></el-date-picker>
+
+        <el-select v-model="form.timeSlots" multiple collapse-tags placeholder="选择节次 (支持多选)">
+          <el-option-group v-for="group in timeOptions" :key="group.label" :label="group.label">
+            <el-option v-for="item in group.options" :key="item.value" :label="item.label" :value="item.value"></el-option>
+          </el-option-group>
+        </el-select>
+
+        <el-button type="primary" icon="el-icon-upload2" @click="onSubmit" style="background: #67C23A; border-color: #67C23A;">批量发布</el-button>
+      </div>
+
+      <div style="margin-top: 20px;">
+        <el-table :data="myList" style="width: 100%" height="250" size="small">
+          <el-table-column prop="availableDate" label="日期" width="150"></el-table-column>
+          <el-table-column prop="timeSlot" label="时间段"></el-table-column>
+          <el-table-column label="状态" width="120">
+            <template slot-scope="scope">
+              <div v-if="scope.row.status===0"><span class="status-dot status-free"></span>空闲中</div>
+              <div v-else><span class="status-dot status-busy"></span>已预订</div>
+            </template>
+          </el-table-column>
+          <el-table-column label="操作" width="100" align="center">
+            <template slot-scope="scope">
+              <el-button v-if="scope.row.status === 0" type="text" icon="el-icon-delete" style="color: #F56C6C" @click="deleteItem(scope.row)">删除</el-button>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+
+    <!-- 2. 订单管理 -->
+    <div class="section-card">
+      <el-tabs v-model="activeTab">
+        <!-- 待办订单 -->
+        <el-tab-pane name="todo">
+          <span slot="label"><i class="el-icon-bell"></i> 待办订单 <el-badge :value="todoOrders.length" class="item" type="danger" v-if="todoOrders.length>0" /></span>
+          <el-table :data="todoOrders" style="width: 100%" empty-text="当前没有待处理的订单，快去发布空闲吧！">
+            <el-table-column prop="course_name" label="课程"></el-table-column>
+            <el-table-column prop="classroom" label="地点" width="120"></el-table-column>
+            <el-table-column prop="buyerName" label="买家" width="150"></el-table-column>
+            <el-table-column prop="price" label="预计收入" width="120">
+              <template slot-scope="scope"><span style="color: #F56C6C; font-weight: bold;">+{{ (scope.row.price * 0.9).toFixed(1) }}</span></template>
+            </el-table-column>
+            <el-table-column label="操作" width="220" align="right">
+              <template slot-scope="scope">
+                <el-button size="small" icon="el-icon-chat-round" @click="contactBuyer(scope.row)">联系</el-button>
+                <el-button size="small" type="success" @click="finishOrder(scope.row)">确认已代课</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+
+        <!-- 历史订单 -->
+        <el-tab-pane name="history">
+          <span slot="label"><i class="el-icon-tickets"></i> 历史订单</span>
+          <el-table :data="historyOrders" style="width: 100%" stripe>
+            <el-table-column prop="course_name" label="课程"></el-table-column>
+            <el-table-column prop="create_time" label="时间" width="180"></el-table-column>
+            <el-table-column prop="buyerName" label="买家"></el-table-column>
+            <el-table-column label="结果" width="120">
+              <template slot-scope="scope">
+                <el-tag v-if="scope.row.status===2" type="success" size="small" effect="dark">完成</el-tag>
+                <el-tag v-else type="info" size="small" effect="plain">取消</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="120" align="right">
+              <template slot-scope="scope">
+                <el-button size="mini" type="text" @click="contactBuyer(scope.row)">售后联系</el-button>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
+      </el-tabs>
+    </div>
+  </div>
+
+  <!-- 弹窗：申请提现 -->
+  <el-dialog title="申请提现" :visible.sync="withdrawDialog" width="350px" center>
+    <div style="text-align: center; margin-bottom: 20px;">
+      <p style="color: #666; margin-bottom: 10px;">当前可提现余额</p>
+      <div style="font-size: 24px; font-weight: bold; color: #67C23A;">¥ {{ balance }}</div>
+    </div>
+    <el-input v-model="withdrawAmount" placeholder="请输入金额" type="number">
+      <template slot="append">元</template>
+    </el-input>
+    <span slot="footer">
+            <el-button type="primary" @click="doWithdraw" style="width: 100%">确认申请</el-button>
+        </span>
+  </el-dialog>
+
+  <!-- 弹窗：提现记录 -->
+  <el-dialog title="资金记录" :visible.sync="historyDialog" width="550px">
+    <el-table :data="withdrawList" stripe>
+      <el-table-column prop="create_time" label="申请时间" width="180"></el-table-column>
+      <el-table-column prop="amount" label="提现金额">
+        <template slot-scope="scope"><b>-{{ scope.row.amount }}</b></template>
+      </el-table-column>
+      <el-table-column label="状态" align="center">
+        <template slot-scope="scope">
+          <el-tag v-if="scope.row.status===0" type="warning" size="mini">⏳ 审核中</el-tag>
+          <el-tag v-else-if="scope.row.status===1" type="success" size="mini">✅ 已到账</el-tag>
+          <el-tag v-else type="danger" size="mini">❌ 已驳回</el-tag>
+        </template>
+      </el-table-column>
+    </el-table>
+  </el-dialog>
+</div>
+
+<script>
+  new Vue({
+    el: '#app',
+    data: {
+      user: {}, balance: 0, creditScore: 100, activeTab: 'todo',
+      form: { availableDate: '', timeSlots: [] },
+      timeOptions: [
+        { label: '☀️ 上午', options: [{ value: '第一节 (08:00~08:45)', label: '第一节 (08:00~08:45)' }, { value: '第二节 (08:50~09:35)', label: '第二节 (08:50~09:35)' }, { value: '第三节 (09:50~10:35)', label: '第三节 (09:50~10:35)' }, { value: '第四节 (10:40~11:25)', label: '第四节 (10:40~11:25)' }, { value: '第五节 (11:30~12:15)', label: '第五节 (11:30~12:15)' }] },
+        { label: '☕ 下午', options: [{ value: '第六节 (13:30~14:15)', label: '第六节 (13:30~14:15)' }, { value: '第七节 (14:20~15:05)', label: '第七节 (14:20~15:05)' }, { value: '第八节 (15:20~16:05)', label: '第八节 (15:20~16:05)' }, { value: '第九节 (16:10~16:55)', label: '第九节 (16:10~16:55)' }] },
+        { label: '🌙 晚上', options: [{ value: '第十节 (18:30~19:15)', label: '第十节 (18:30~19:15)' }, { value: '第十一节 (19:20~20:05)', label: '第十一节 (19:20~20:05)' }, { value: '第十二节 (20:10~20:55)', label: '第十二节 (20:10~20:55)' }, { value: '第十三节 (21:00~21:45)', label: '第十三节 (21:00~21:45)' }] }
+      ],
+      myList: [], allOrders: [], withdrawDialog: false, historyDialog: false, withdrawAmount: '', withdrawList: []
+    },
+    computed: {
+      todoOrders() { return this.allOrders.filter(o => o.status === 0); },
+      historyOrders() { return this.allOrders.filter(o => o.status !== 0); }
+    },
+    created() {
+      const userStr = localStorage.getItem("loginUser");
+      if (!userStr) { window.location.href = "login.html"; return; }
+      this.user = JSON.parse(userStr);
+      this.refreshInfo();
+      this.loadMyList();
+      this.loadOrders();
+    },
+    methods: {
+      refreshInfo() { axios.get('/user/info?id='+this.user.id).then(res => { this.user=res.data; this.balance=res.data.balance; this.creditScore=res.data.creditScore; }); },
+      onSubmit() {
+        if(!this.form.availableDate || this.form.timeSlots.length===0) { this.$message.warning("请选择日期和至少一个节次"); return; }
+        const reqs = this.form.timeSlots.map(s => axios.post('/seller/publish', {sellerId:this.user.id, availableDate:this.form.availableDate, timeSlot:s}));
+        Promise.all(reqs).then(() => { this.$message.success("发布成功"); this.form.timeSlots=[]; this.loadMyList(); });
+      },
+      loadMyList() { axios.get('/seller/my-list?sellerId='+this.user.id).then(res => this.myList=res.data); },
+      loadOrders() { axios.get('/seller/orders?sellerId='+this.user.id).then(res => this.allOrders=res.data); },
+
+      // 【关键修复】联系买家逻辑
+      contactBuyer(row) {
+        // 优先取 buyer_id (下划线)，没有则取 buyerId (驼峰)
+        const id = row.buyer_id || row.buyerId;
+        const name = row.buyerName || "买家";
+
+        if (!id) {
+          this.$message.error("无法获取买家ID");
+          return;
+        }
+
+        localStorage.setItem("chatTarget", JSON.stringify({
+          id: id,
+          nickname: name
+        }));
+        window.location.href = "chat.html";
+      },
+
+      finishOrder(row) { if(confirm("确认完成？")){ axios.post('/order/updateStatus', {id:row.id, status:2}).then(res => { this.$message.success("收益到账"); this.loadOrders(); this.refreshInfo(); }); } },
+      deleteItem(row) { if(confirm("确认删除？")){ axios.post('/seller/delete', {id:row.id}).then(() => { this.$message.success("已删除"); this.loadMyList(); }); } },
+
+      doWithdraw() {
+        if(!this.withdrawAmount || this.withdrawAmount<=0) { this.$message.warning("金额无效"); return; }
+        axios.post('/wallet/withdraw', {userId:this.user.id, amount:this.withdrawAmount}).then(res => { if(res.data.success){ this.$message.success("已提交"); this.withdrawDialog=false; this.withdrawAmount=''; this.refreshInfo(); } else { this.$message.error(res.data.message); } });
+      },
+
+      showHistory() { this.historyDialog=true; axios.get('/wallet/my-withdraws?userId='+this.user.id).then(res => this.withdrawList=res.data); },
+      logout() { localStorage.removeItem("loginUser"); window.location.href = "login.html"; }
+    }
+  })
+</script>
+</body>
+</html>

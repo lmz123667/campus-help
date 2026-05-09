@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <title>校园代课系统 - 登录</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      height: 100vh;
+      /* 高端背景：深蓝渐变 + 几何纹理，或者换成你们学校的照片 */
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-family: "Helvetica Neue", Helvetica, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "微软雅黑", Arial, sans-serif;
+    }
+
+    .login-container {
+      width: 900px;
+      height: 550px;
+      background: rgba(255, 255, 255, 0.95);
+      border-radius: 20px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.2);
+      display: flex;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* 左侧装饰区 */
+    .left-panel {
+      width: 50%;
+      background: url('https://images.unsplash.com/photo-1523050854058-8df90110c9f1?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80') center center no-repeat;
+      background-size: cover;
+      position: relative;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      color: white;
+    }
+    .left-panel::after {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(118, 75, 162, 0.6); /* 紫色遮罩 */
+    }
+    .welcome-text {
+      position: relative;
+      z-index: 1;
+      text-align: center;
+    }
+    .welcome-text h1 { font-size: 32px; margin-bottom: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+    .welcome-text p { font-size: 16px; opacity: 0.9; }
+
+    /* 右侧表单区 */
+    .right-panel {
+      width: 50%;
+      padding: 40px 50px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .form-title { font-size: 26px; color: #333; font-weight: bold; margin-bottom: 30px; text-align: center; }
+
+    /* 输入框美化 */
+    .el-input__inner { height: 45px; border-radius: 25px; padding-left: 20px; border: 1px solid #eee; background: #f9f9f9; transition: all 0.3s; }
+    .el-input__inner:focus { border-color: #764ba2; background: white; box-shadow: 0 0 0 2px rgba(118, 75, 162, 0.1); }
+
+    /* 按钮美化 */
+    .submit-btn {
+      width: 100%;
+      height: 45px;
+      border-radius: 25px;
+      background: linear-gradient(to right, #667eea, #764ba2);
+      border: none;
+      font-size: 16px;
+      font-weight: bold;
+      letter-spacing: 2px;
+      box-shadow: 0 4px 15px rgba(118, 75, 162, 0.3);
+      transition: transform 0.2s;
+    }
+    .submit-btn:hover { transform: translateY(-2px); opacity: 0.9; }
+    .submit-btn:active { transform: translateY(0); }
+
+    .toggle-box { text-align: center; margin-top: 20px; font-size: 14px; color: #666; }
+    .toggle-link { color: #764ba2; cursor: pointer; font-weight: bold; margin-left: 5px; }
+
+    /* 身份选择单选框 */
+    .role-group { text-align: center; margin-bottom: 20px; }
+    .el-radio__input.is-checked .el-radio__inner { border-color: #764ba2; background: #764ba2; }
+    .el-radio__input.is-checked+.el-radio__label { color: #764ba2; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div class="login-container">
+    <!-- 左侧海报 -->
+    <div class="left-panel">
+      <div class="welcome-text">
+        <h1>Desk</h1>
+        <p>让校园生活更轻松，互助更高效</p>
+      </div>
+    </div>
+
+    <!-- 右侧表单 -->
+    <div class="right-panel">
+      <!-- 登录模式 -->
+      <div v-if="isLoginMode">
+        <div class="form-title">欢迎登录</div>
+        <el-form :model="loginForm">
+          <el-form-item>
+            <el-input prefix-icon="el-icon-user" v-model="loginForm.username" placeholder="请输入账号"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-input prefix-icon="el-icon-lock" v-model="loginForm.password" type="password" placeholder="请输入密码" @keyup.enter.native="doLogin"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" class="submit-btn" @click="doLogin" :loading="loading">登 录</el-button>
+          </el-form-item>
+        </el-form>
+        <div class="toggle-box">还没有账号？<span class="toggle-link" @click="toggleMode">立即注册</span></div>
+      </div>
+
+      <!-- 注册模式 -->
+      <div v-else>
+        <div class="form-title">创建新账号</div>
+        <el-form :model="registerForm">
+          <el-form-item>
+            <el-input prefix-icon="el-icon-user" v-model="registerForm.username" placeholder="设置账号"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-input prefix-icon="el-icon-lock" v-model="registerForm.password" type="password" placeholder="设置密码"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-input prefix-icon="el-icon-postcard" v-model="registerForm.nickname" placeholder="你的昵称"></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-input prefix-icon="el-icon-mobile-phone" v-model="registerForm.contactInfo" placeholder="联系方式 (QQ/微信)"></el-input>
+          </el-form-item>
+          <div class="role-group">
+            <el-radio-group v-model="registerForm.role">
+              <el-radio label="BUYER">买家</el-radio>
+              <el-radio label="SELLER">卖家</el-radio>
+            </el-radio-group>
+          </div>
+          <el-form-item>
+            <el-button type="success" class="submit-btn" @click="doRegister" :loading="loading" style="background: linear-gradient(to right, #42b983, #2c855c);">注 册</el-button>
+          </el-form-item>
+        </el-form>
+        <div class="toggle-box">已有账号？<span class="toggle-link" @click="toggleMode" style="color: #42b983;">去登录</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  new Vue({
+    el: '#app',
+    data: {
+      isLoginMode: true,
+      loading: false,
+      loginForm: { username: '', password: '' },
+      registerForm: { username: '', password: '', nickname: '', role: 'BUYER', contactInfo: '' }
+    },
+    methods: {
+      toggleMode() {
+        this.isLoginMode = !this.isLoginMode;
+        this.registerForm = { username: '', password: '', nickname: '', role: 'BUYER', contactInfo: '' };
+      },
+      doLogin() {
+        if(!this.loginForm.username || !this.loginForm.password) {
+          this.$message.warning("请输入完整信息"); return;
+        }
+        this.loading = true;
+        axios.post('/login', this.loginForm).then(res => {
+          this.loading = false;
+          const data = res.data;
+          if (data.success) {
+            this.$message.success('登录成功，欢迎回来！');
+            localStorage.setItem("loginUser", JSON.stringify(data.data));
+            setTimeout(() => {
+              if (data.data.role === 'ADMIN') window.location.href = "admin.html";
+              else if (data.data.role === 'SELLER') window.location.href = "seller.html";
+              else window.location.href = "buyer.html";
+            }, 800);
+          } else {
+            this.$message.error(data.message);
+          }
+        }).catch(() => { this.loading = false; this.$message.error('服务器连接失败'); });
+      },
+      doRegister() {
+        if(!this.registerForm.username || !this.registerForm.password || !this.registerForm.nickname) {
+          this.$message.warning("请填写完整信息"); return;
+        }
+        this.loading = true;
+        axios.post('/register', this.registerForm).then(res => {
+          this.loading = false;
+          if (res.data.success) {
+            this.$message.success("注册成功！请登录");
+            this.isLoginMode = true;
+            this.loginForm.username = this.registerForm.username;
+          } else {
+            this.$message.error(res.data.message);
+          }
+        });
+      }
+    }
+  })
+</script>
+</body>
+</html>

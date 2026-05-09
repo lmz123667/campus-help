@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8">
+  <!-- 关键：适配移动端，禁止缩放，像原生App一样 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>在线沟通</title>
+  <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+  <script src="https://unpkg.com/element-ui/lib/index.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/element-ui/lib/theme-chalk/index.css">
+  <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+  <style>
+    /* 全局重置 */
+    body { margin: 0; padding: 0; background-color: #ededed; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; height: 100vh; overflow: hidden; }
+
+    #app { height: 100%; display: flex; justify-content: center; }
+
+    /* 聊天容器：限制最大宽度，电脑上看也不会太宽 */
+    .chat-container { width: 100%; max-width: 600px; height: 100%; background: #ededed; display: flex; flex-direction: column; position: relative; box-shadow: 0 0 20px rgba(0,0,0,0.05); }
+
+    /* 1. 顶部栏 */
+    .header {
+      height: 50px; background: #f7f7f7; border-bottom: 1px solid #dcdcdc;
+      display: flex; align-items: center; justify-content: space-between; padding: 0 15px;
+      font-size: 17px; font-weight: 600; color: #000; z-index: 10;
+      backdrop-filter: blur(10px);
+    }
+    .back-btn { cursor: pointer; display: flex; align-items: center; font-size: 15px; color: #333; transition: opacity 0.2s; }
+    .back-btn:active { opacity: 0.6; }
+    .back-btn i { font-size: 20px; margin-right: 2px; font-weight: bold; }
+
+    /* 2. 消息区域 */
+    .message-area {
+      flex: 1; padding: 15px; overflow-y: auto;
+      -webkit-overflow-scrolling: touch; /* iOS顺滑滚动 */
+      padding-bottom: 20px;
+    }
+
+    .msg-row { display: flex; margin-bottom: 20px; width: 100%; }
+    .msg-row.my-msg { justify-content: flex-end; }
+
+    /* 头像 */
+    .avatar {
+      width: 40px; height: 40px; border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 16px; color: white; flex-shrink: 0;
+      font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .avatar.me { background: linear-gradient(135deg, #409EFF, #66b1ff); margin-left: 10px; }
+    .avatar.other { background: linear-gradient(135deg, #ffba00, #ffc83e); margin-right: 10px; }
+
+    /* 气泡核心样式 */
+    .msg-bubble {
+      max-width: 70%; padding: 10px 14px; border-radius: 8px; font-size: 15px; line-height: 1.6;
+      position: relative; box-shadow: 0 1px 2px rgba(0,0,0,0.05); word-break: break-all;
+    }
+
+    /* 对方气泡 (白) */
+    .other-msg .msg-bubble { background: #ffffff; color: #000; border-top-left-radius: 2px; }
+    .other-msg .msg-bubble::before {
+      content: ""; position: absolute; top: 0; left: -8px; width: 0; height: 0;
+      border-top: 8px solid #ffffff; border-left: 8px solid transparent;
+    }
+
+    /* 我方气泡 (绿) */
+    .my-msg .msg-bubble { background: #95ec69; color: #000; border-top-right-radius: 2px; }
+    .my-msg .msg-bubble::before {
+      content: ""; position: absolute; top: 0; right: -8px; width: 0; height: 0;
+      border-top: 8px solid #95ec69; border-right: 8px solid transparent;
+    }
+
+    /* 3. 底部输入区 */
+    .input-area {
+      background: #f7f7f7; border-top: 1px solid #dcdcdc; padding: 10px 15px;
+      display: flex; align-items: center;
+      padding-bottom: max(10px, env(safe-area-inset-bottom)); /* 适配全面屏底部 */
+    }
+    /* 让输入框自动占满剩余空间 */
+    .input-area .el-input { flex: 1; }
+    .el-input__inner { border-radius: 4px; border: none; background: white; height: 40px; padding: 0 15px; }
+
+    /* 发送按钮修复 */
+    .send-btn {
+      margin-left: 10px; background: #07c160; color: white; border: none;
+      font-weight: 500; padding: 0 16px; height: 40px; line-height: 40px;
+      border-radius: 4px; cursor: pointer; transition: background 0.2s; font-size: 14px;
+      flex-shrink: 0; white-space: nowrap; min-width: 60px; text-align: center;
+    }
+    .send-btn:active { background: #06ad56; }
+
+    /* 4. 悬浮诊断条 (半透明胶囊) */
+    .status-bar {
+      position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+      background: rgba(0, 0, 0, 0.6); color: white; padding: 6px 16px; border-radius: 20px;
+      font-size: 12px; z-index: 99; backdrop-filter: blur(4px);
+      display: flex; align-items: center; opacity: 0; transition: opacity 0.5s; pointer-events: none;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    .status-bar.show { opacity: 1; pointer-events: auto; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: #07c160; margin-right: 8px; }
+    .dot.offline { background: #F56C6C; }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <div class="chat-container">
+    <!-- 顶部 -->
+    <div class="header">
+      <div class="back-btn" @click="goBack"><i class="el-icon-arrow-left"></i> 返回</div>
+      <span>{{ targetUser.nickname }}</span>
+      <div style="width: 40px;"></div> <!-- 占位保持标题居中 -->
+    </div>
+
+    <!-- 悬浮状态条 -->
+    <div class="status-bar" :class="{ 'show': showStatus }">
+      <span class="dot" :class="{ 'offline': !isOnline }"></span>
+      {{ wsStatus }}
+    </div>
+
+    <!-- 消息流 -->
+    <div class="message-area" id="msgArea">
+      <div v-for="(msg, index) in messageList" :key="index"
+           :class="['msg-row', msg.isMe ? 'my-msg' : 'other-msg']">
+
+        <!-- 对方头像 -->
+        <div class="avatar other" v-if="!msg.isMe">{{ targetUser.nickname ? targetUser.nickname[0] : '他' }}</div>
+
+        <div class="msg-bubble">{{ msg.content }}</div>
+
+        <!-- 我的头像 -->
+        <div class="avatar me" v-if="msg.isMe">{{ user.nickname ? user.nickname[0] : '我' }}</div>
+      </div>
+    </div>
+
+    <!-- 输入区 -->
+    <div class="input-area">
+      <el-input v-model="inputText" placeholder="发消息..." @keyup.enter.native="send"></el-input>
+      <div class="send-btn" @click="send">发送</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  new Vue({
+    el: '#app',
+    data: {
+      user: {},
+      targetUser: {},
+      ws: null,
+      inputText: '',
+      messageList: [],
+      // 诊断变量
+      wsStatus: '连接中...',
+      isOnline: false,
+      showStatus: true
+    },
+    created() {
+      // 1. 获取本地存储的用户信息
+      this.user = JSON.parse(localStorage.getItem("loginUser"));
+      const targetStr = localStorage.getItem("chatTarget");
+
+      // 2. 安全校验
+      if(!this.user || !targetStr) {
+        this.$message.error("参数丢失，请重新登录");
+        setTimeout(() => window.history.back(), 1000);
+        return;
+      }
+      this.targetUser = JSON.parse(targetStr);
+
+      // 3. 加载历史并连接
+      this.loadHistory();
+      this.initWebSocket();
+    },
+    methods: {
+      initWebSocket() {
+        // 自动获取当前 IP，适配手机访问
+        const host = window.location.host;
+        const url = "ws://" + host + "/chat/" + this.user.id;
+
+        this.ws = new WebSocket(url);
+
+        this.ws.onopen = () => {
+          this.isOnline = true;
+          this.wsStatus = '✅ 已连接';
+          // 连接成功 2 秒后自动隐藏状态条，沉浸式体验
+          setTimeout(() => { this.showStatus = false; }, 2000);
+        };
+
+        this.ws.onmessage = (event) => {
+          const data = JSON.parse(event.data);
+          this.messageList.push({ content: data.content, isMe: false });
+          this.scrollToBottom();
+        };
+
+        this.ws.onclose = () => {
+          this.isOnline = false;
+          this.wsStatus = '❌ 连接断开 (网络波动)';
+          this.showStatus = true; // 断开时显示出来提醒用户
+        };
+
+        this.ws.onerror = () => {
+          this.isOnline = false;
+          this.wsStatus = '⚠️ 连接错误 (请检查防火墙)';
+          this.showStatus = true;
+        };
+      },
+
+      send() {
+        if(!this.inputText) return;
+
+        // 检查连接状态
+        if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+          this.$message.error("网络未连接，无法发送");
+          this.showStatus = true;
+          return;
+        }
+
+        try {
+          // 发送消息
+          const msgObj = {
+            toUserId: this.targetUser.id, // 目标ID
+            content: this.inputText
+          };
+          this.ws.send(JSON.stringify(msgObj));
+
+          // 本地直接上屏，无需等待后端
+          this.messageList.push({ content: this.inputText, isMe: true });
+          this.inputText = '';
+          this.scrollToBottom();
+        } catch (e) {
+          this.$message.error("发送失败");
+        }
+      },
+
+      loadHistory() {
+        axios.get('/chat/history', {
+          params: {
+            userId1: this.user.id,
+            userId2: this.targetUser.id
+          }
+        }).then(res => {
+          this.messageList = res.data.map(item => ({
+            content: item.content,
+            isMe: item.sender_id === this.user.id
+          }));
+          this.scrollToBottom();
+        });
+      },
+
+      scrollToBottom() {
+        this.$nextTick(() => {
+          const div = document.getElementById('msgArea');
+          if(div) div.scrollTop = div.scrollHeight;
+        });
+      },
+
+      goBack() {
+        window.history.back();
+      }
+    }
+  })
+</script>
+</body>
+</html>
